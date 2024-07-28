@@ -25,37 +25,37 @@ static void print_board(const u8 v[81]) {
 }
 
 static void string_to_board(u8 v[81], const char * buffer) {
-	u8 i;
-	for (i = 0; i < 81; ++i) {
-		if (buffer[i] == '.' || buffer[i] == ' ' || buffer[i] == '0' || buffer[i] == '_') {
-			v[i] = 0;
-		} else {
-			v[i] = buffer[i] - '0';
-		}
-	}
+    u8 i;
+    for (i = 0; i < 81; ++i) {
+        if (buffer[i] == '.' || buffer[i] == ' ' || buffer[i] == '0' || buffer[i] == '_') {
+            v[i] = 0;
+        } else {
+            v[i] = buffer[i] - '0';
+        }
+    }
 }
 
 static u8 bit_count(u16 i) {
-	u8 ret = 0;
-	while (i) {
-		ret += i & 1;
-		i /= 2;
-	}
-	return ret;
+    u8 ret = 0;
+    while (i) {
+        ret += i & 1;
+        i /= 2;
+    }
+    return ret;
 }
 
 static u8 bit_counts[512];
 
-static u8 bit_positions[] = {
-    [1 << 0] = 0,
-    [1 << 1] = 1,
-    [1 << 2] = 2,
-    [1 << 3] = 3,
-    [1 << 4] = 4,
-    [1 << 5] = 5,
-    [1 << 6] = 6,
-    [1 << 7] = 7,
-    [1 << 8] = 8,
+static u8 single_bit_positions[] = {
+    [1 << 0] = 1,
+    [1 << 1] = 2,
+    [1 << 2] = 3,
+    [1 << 3] = 4,
+    [1 << 4] = 5,
+    [1 << 5] = 6,
+    [1 << 6] = 7,
+    [1 << 7] = 8,
+    [1 << 8] = 9,
 };
 
 static void populate_bit_counts() {
@@ -94,11 +94,17 @@ static bool calc_bitmaps_of_accepted_values(u16 bitmap[81], const u8 v[81], bool
                 }
 
                 // square
-                for (k = (i / 3) * 3; k < (i / 3) * 3 + 3; ++k) {
-                    for (l = (j / 3) * 3; l < (j / 3) * 3 + 3; ++l) {
-                        bitmap[k * 9 + l] &= mask;
-                    }
-                }
+                k = i - (i % 3);
+                l = j - (j % 3);
+                bitmap[k * 9 +  0 + l + 0] &= mask;
+                bitmap[k * 9 +  9 + l + 0] &= mask;
+                bitmap[k * 9 + 18 + l + 0] &= mask;
+                bitmap[k * 9 +  0 + l + 1] &= mask;
+                bitmap[k * 9 +  9 + l + 1] &= mask;
+                bitmap[k * 9 + 18 + l + 1] &= mask;
+                bitmap[k * 9 +  0 + l + 2] &= mask;
+                bitmap[k * 9 +  9 + l + 2] &= mask;
+                bitmap[k * 9 + 18 + l + 2] &= mask;
             }
         }
     }
@@ -110,21 +116,11 @@ static bool calc_bitmaps_of_accepted_values(u16 bitmap[81], const u8 v[81], bool
     for (i = 0; i < 81; ++i) {
         if (bitmap[i] == 0 && v[i] == 0) {
             *impossible = TRUE;
-            break;
+            return FALSE;
         }
     }
 
     return FALSE;
-}
-
-static bool board_filled(const u8 v[81]) {
-	u8 i;
-	for (i = 0; i < 81; ++i) {
-		if (v[i] == 0) {
-			return FALSE;
-        }
-    }
-	return TRUE;
 }
 
 static u8 select_clear_position(const u8 v[81], const u16 bitmap[81], u8 * val) {
@@ -136,7 +132,7 @@ static u8 select_clear_position(const u8 v[81], const u16 bitmap[81], u8 * val) 
         if (v[i] == 0) {
             u8 bc = bit_counts[bitmap[i]];
             if (bc == 1) {
-                *val = bit_positions[bitmap[i]] + 1;
+                *val = single_bit_positions[bitmap[i]];
                 return i;
             }
             if (bc < min_bits) {
@@ -191,9 +187,9 @@ int main(int argc, char * argv[]) {
         printf("\nUSAGE\n\t%s puzzle_file [--verbose]\n\nARGUMENTS\n\tpuzzle_file - text file with sudoku puzzles one by line, with missing positions as ASCII zeroes or dots. All other characters will be ignored.\n\t--verbose - whether to print the result after each solved puzzle\n\nEXAMPLE\n\t%s puzzles.txt\n\n", argv[0], argv[0]);
         return 1;
     }
-	unsigned int number = 0;
-	unsigned int solved = 0;
-	unsigned int impossible = 0;
+    unsigned int number = 0;
+    unsigned int solved = 0;
+    unsigned int impossible = 0;
     bool verbose = FALSE;
 
     const char * filename = argv[1];
@@ -207,44 +203,44 @@ int main(int argc, char * argv[]) {
         }
     }
 
-	FILE * fp = fopen(argv[1], "r");
-	if (fp == NULL) {
-		fprintf(stderr, "Could not open file for reading\n");
-		return EXIT_FAILURE;
-	}
+    FILE * fp = fopen(argv[1], "r");
+    if (fp == NULL) {
+        fprintf(stderr, "Could not open file for reading\n");
+        return EXIT_FAILURE;
+    }
 
     populate_bit_counts();
 
     char buffer[83];
 
-	while (fgets(buffer, 82, fp) != NULL) {
+    while (fgets(buffer, 82, fp) != NULL) {
         buffer[81] = 0;
-		if (buffer[0] == '#' || strlen(buffer) < 81)
-			continue;
+        if (buffer[0] == '#' || strlen(buffer) < 81)
+            continue;
 
-		++number;
+        ++number;
 
         if (verbose) {
-		  printf("Starting puzzle #%d:\n%s\n\n", number, buffer);
+          printf("Starting puzzle #%d:\n%s\n\n", number, buffer);
         }
 
         u8 v[81];
-		string_to_board(v, buffer);
+        string_to_board(v, buffer);
 
-		solve(v);
-		if (!board_filled(v)) {
-			impossible++;
+        bool board_solved = solve(v);
+        if (board_solved) {
+            solved++;
             if (verbose) {
-    			fprintf(stderr, "Impossible puzzle\n");
+                printf("Solution:\n");
+                print_board(v);
             }
-		} else {
-			solved++;
+        } else {
+            impossible++;
             if (verbose) {
-    			printf("Solution:\n");
-    			print_board(v);
+                fprintf(stderr, "Impossible puzzle\n");
             }
-		}
-	}
-	printf("Solved=%u\nImpossible=%u\nTotal=%u\n", solved, impossible, number);
-	return EXIT_SUCCESS;
+        }
+    }
+    printf("Solved=%u\nImpossible=%u\nTotal=%u\n", solved, impossible, number);
+    return EXIT_SUCCESS;
 }
