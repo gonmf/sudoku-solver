@@ -60,7 +60,7 @@ static void rem_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     squares[y / 3][x / 3] &= mask;
 }
 
-static bool solve1(u8 v[9][9]) {
+static bool search_upper(u8 v[9][9]) {
     u8 x;
     u8 y;
     u8 best_valid_plays = 10;
@@ -92,7 +92,7 @@ static bool solve1(u8 v[9][9]) {
             }
             if (valid_plays == 1) {
                 add_value(v, x, y, last_play);
-                if (solve1(v)) {
+                if (search_upper(v)) {
                     return TRUE;
                 }
                 rem_value(v, x, y, last_play);
@@ -117,7 +117,7 @@ static bool solve1(u8 v[9][9]) {
 
         if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
             add_value(v, x, y, play);
-            if (solve1(v)) {
+            if (search_upper(v)) {
                 return TRUE;
             }
             rem_value(v, x, y, play);
@@ -126,7 +126,73 @@ static bool solve1(u8 v[9][9]) {
     return FALSE;
 }
 
-static bool solve(u8 v[9][9]) {
+static bool search_lower(u8 v[9][9]) {
+    u8 x;
+    u8 y;
+    u8 best_valid_plays = 10;
+    u8 best_pos_x;
+    u8 best_pos_y;
+    u8 last_play;
+    u8 valid_plays;
+    char play;
+
+    for (y = 0; y < 9; ++y) {
+        for (x = 0; x < 9; ++x) {
+            if (v[y][x] != 0) {
+                continue;
+            }
+
+            last_play = 0;
+            valid_plays = 0;
+            for (play = 8; play >= 0; --play) {
+                u16 mask = (1 << play);
+
+                if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
+                    valid_plays++;
+                    last_play = play;
+                }
+            }
+
+            if (valid_plays == 0) {
+                return FALSE;
+            }
+            if (valid_plays == 1) {
+                add_value(v, x, y, last_play);
+                if (search_lower(v)) {
+                    return TRUE;
+                }
+                rem_value(v, x, y, last_play);
+                return FALSE;
+            }
+            if (best_valid_plays > valid_plays) {
+                best_valid_plays = valid_plays;
+                best_pos_x = x;
+                best_pos_y = y;
+            }
+        }
+    }
+
+    if (best_valid_plays == 10) {
+        return TRUE;
+    }
+
+    x = best_pos_x;
+    y = best_pos_y;
+    for (play = 8; play >= 0; --play) {
+        u16 mask = (1 << play);
+
+        if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
+            add_value(v, x, y, play);
+            if (search_lower(v)) {
+                return TRUE;
+            }
+            rem_value(v, x, y, play);
+        }
+    }
+    return FALSE;
+}
+
+static bool setup(u8 v[9][9]) {
     u8 x;
     u8 y;
 
@@ -140,15 +206,27 @@ static bool solve(u8 v[9][9]) {
         }
     }
 
+    u8 upper = 0;
+    u8 lower = 0;
+
     for (y = 0; y < 9; ++y) {
         for (x = 0; x < 9; ++x) {
             if (v[y][x] != 0) {
+                if (v[y][x] < 5) {
+                    lower++;
+                } else {
+                    upper++;
+                }
                 add_value(v, x, y, v[y][x] - 1);
             }
         }
     }
 
-    return solve1(v);
+    if (upper < lower) {
+        return search_lower(v);
+    } else {
+        return search_upper(v);
+    }
 }
 
 int main(int argc, char * argv[]) {
@@ -194,7 +272,7 @@ int main(int argc, char * argv[]) {
         u8 v[9][9];
         string_to_board(v, buffer);
 
-        bool board_solved = solve(v);
+        bool board_solved = setup(v);
         if (board_solved) {
             solved++;
             if (verbose) {
