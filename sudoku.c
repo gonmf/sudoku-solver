@@ -2,7 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef unsigned char u8;
+typedef uint16_t u16;
+typedef uint8_t u8;
 typedef char bool;
 #define TRUE 1
 #define FALSE 0
@@ -39,22 +40,24 @@ static void string_to_board(u8 v[9][9], const char * buffer) {
     }
 }
 
-static u8 rows[9][9];
-static u8 columns[9][9];
-static u8 squares[3][3][9];
+static u16 rows[9];
+static u16 columns[9];
+static u16 squares[3][3];
 
 static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     v[y][x] = val + 1;
-    rows[y][val]++;
-    columns[x][val]++;
-    squares[y / 3][x / 3][val]++;
+    u16 mask = (1 << val);
+    rows[y] |= mask;
+    columns[x] |= mask;
+    squares[y / 3][x / 3] |= mask;
 }
 
 static void rem_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     v[y][x] = 0;
-    rows[y][val]--;
-    columns[x][val]--;
-    squares[y / 3][x / 3][val]--;
+    u16 mask = ~(1 << val);
+    rows[y] &= mask;
+    columns[x] &= mask;
+    squares[y / 3][x / 3] &= mask;
 }
 
 static bool solve1(u8 v[9][9]) {
@@ -79,7 +82,9 @@ static bool solve1(u8 v[9][9]) {
             last_play = 0;
             valid_plays = 0;
             for (play = 0; play < 9; ++play) {
-                if (rows[y][play] == 0 && columns[x][play] == 0 && squares[y / 3][x / 3][play] == 0) {
+                u16 mask = (1 << play);
+
+                if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
                     valid_plays++;
                     last_play = play;
                 }
@@ -111,7 +116,9 @@ static bool solve1(u8 v[9][9]) {
     x = best_pos_x;
     y = best_pos_y;
     for (play = 0; play < 9; ++play) {
-        if (rows[y][play] == 0 && columns[x][play] == 0 && squares[y / 3][x / 3][play] == 0) {
+        u16 mask = (1 << play);
+
+        if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
             add_value(v, x, y, play);
             if (solve1(v)) {
                 return TRUE;
@@ -125,19 +132,14 @@ static bool solve1(u8 v[9][9]) {
 static bool solve(u8 v[9][9]) {
     u8 x;
     u8 y;
-    u8 k;
 
     for (y = 0; y < 9; ++y) {
-        for (x = 0; x < 9; ++x) {
-            rows[y][x] = 0;
-            columns[y][x] = 0;
-        }
+        rows[y] = 0;
+        columns[y] = 0;
     }
-    for (y = 0; y < 9; ++y) {
-        for (x = 0; x < 9; ++x) {
-            for (k = 0; k < 9; ++k) {
-                squares[y][x][k] = 0;
-            }
+    for (y = 0; y < 3; ++y) {
+        for (x = 0; x < 3; ++x) {
+            squares[y][x] = 0;
         }
     }
 
