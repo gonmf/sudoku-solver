@@ -69,15 +69,12 @@ static bool solve1(u8 v[9][9]) {
     u8 last_play;
     u8 valid_plays;
     u8 play;
-    bool finished = TRUE;
 
     for (y = 0; y < 9; ++y) {
         for (x = 0; x < 9; ++x) {
             if (v[y][x] != 0) {
                 continue;
             }
-
-            finished = FALSE;
 
             last_play = 0;
             valid_plays = 0;
@@ -109,7 +106,7 @@ static bool solve1(u8 v[9][9]) {
         }
     }
 
-    if (finished) {
+    if (best_valid_plays == 10) {
         return TRUE;
     }
 
