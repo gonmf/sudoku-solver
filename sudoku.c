@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-typedef unsigned short int u16;
 typedef unsigned char u8;
 typedef char bool;
 #define TRUE 1
@@ -35,77 +34,75 @@ static void string_to_board(u8 v[81], const char * buffer) {
     }
 }
 
-static u8 bit_count(u16 i) {
-    u8 ret = 0;
-    while (i) {
-        ret += i & 1;
-        i /= 2;
-    }
-    return ret;
+static u8 rows[9][9];
+static u8 columns[9][9];
+static u8 squares[3][3][9];
+
+static void add_value(u8 v[81], u8 pos, u8 play) {
+    v[pos] = play + 1;
+
+    u8 x = pos % 9;
+    u8 y = pos / 9;
+
+    rows[y][play]++;
+    columns[x][play]++;
+    squares[y / 3][x / 3][play]++;
 }
 
-static u8 bit_counts[512];
+static void rem_value(u8 v[81], u8 pos, u8 play) {
+    v[pos] = 0;
 
-static u8 single_bit_positions[] = {
-    [1 << 0] = 1,
-    [1 << 1] = 2,
-    [1 << 2] = 3,
-    [1 << 3] = 4,
-    [1 << 4] = 5,
-    [1 << 5] = 6,
-    [1 << 6] = 7,
-    [1 << 7] = 8,
-    [1 << 8] = 9,
-};
+    u8 x = pos % 9;
+    u8 y = pos / 9;
 
-static void populate_bit_counts() {
-    u16 i;
-    for(i = 1; i < 512; ++i) {
-        bit_counts[i] = bit_count(i);
-    }
+    rows[y][play]--;
+    columns[x][play]--;
+    squares[y / 3][x / 3][play]--;
 }
 
-static bool calc_bitmaps_of_accepted_values(u16 bitmap[81], const u8 v[81], bool * impossible) {
+static bool solve1(u8 v[81]) {
     u8 i;
-    for (i = 0; i < 81; ++i) {
-        bitmap[i] = 0x1ff;
-    }
-
+    u8 x;
+    u8 y;
+    u8 best_valid_plays = 10;
+    u8 best_pos;
+    u8 last_play;
+    u8 valid_plays;
+    u8 play;
     bool finished = TRUE;
 
-    u8 j;
-    u8 val;
-    u16 mask;
-    u8 l;
-    u8 k;
-    for (i = 0; i < 9; ++i) {
-        for (j = 0; j < 9; ++j) {
-            val = v[i * 9 + j];
+    for (i = 0; i < 81; ++i) {
+        if (v[i] != 0) {
+            continue;
+        }
 
-            if (val == 0) {
-                finished = FALSE;
-            } else {
-                mask = (~(1 << (val - 1)));
+        finished = FALSE;
+        x = i % 9;
+        y = i / 9;
 
-                //vertical & horizontal
-                for (l = 0; l < 9; ++l) {
-                    bitmap[l * 9 + j] &= mask;
-                    bitmap[i * 9 + l] &= mask;
-                }
-
-                // square
-                k = i - (i % 3);
-                l = j - (j % 3);
-                bitmap[k * 9 +  0 + l + 0] &= mask;
-                bitmap[k * 9 +  9 + l + 0] &= mask;
-                bitmap[k * 9 + 18 + l + 0] &= mask;
-                bitmap[k * 9 +  0 + l + 1] &= mask;
-                bitmap[k * 9 +  9 + l + 1] &= mask;
-                bitmap[k * 9 + 18 + l + 1] &= mask;
-                bitmap[k * 9 +  0 + l + 2] &= mask;
-                bitmap[k * 9 +  9 + l + 2] &= mask;
-                bitmap[k * 9 + 18 + l + 2] &= mask;
+        last_play = 0;
+        valid_plays = 0;
+        for (play = 0; play < 9; ++play) {
+            if (rows[y][play] == 0 && columns[x][play] == 0 && squares[y / 3][x / 3][play] == 0) {
+                valid_plays++;
+                last_play = play;
             }
+        }
+
+        if (valid_plays == 0) {
+            return FALSE;
+        }
+        if (valid_plays == 1) {
+            add_value(v, i, last_play);
+            if (solve1(v)) {
+                return TRUE;
+            }
+            rem_value(v, i, last_play);
+            return FALSE;
+        }
+        if (best_valid_plays > valid_plays) {
+            best_valid_plays = valid_plays;
+            best_pos = i;
         }
     }
 
@@ -113,73 +110,46 @@ static bool calc_bitmaps_of_accepted_values(u16 bitmap[81], const u8 v[81], bool
         return TRUE;
     }
 
-    for (i = 0; i < 81; ++i) {
-        if (bitmap[i] == 0 && v[i] == 0) {
-            *impossible = TRUE;
-            return FALSE;
+    x = best_pos % 9;
+    y = best_pos / 9;
+    for (play = 0; play < 9; ++play) {
+        if (rows[y][play] == 0 && columns[x][play] == 0 && squares[y / 3][x / 3][play] == 0) {
+            add_value(v, best_pos, play);
+            if (solve1(v)) {
+                return TRUE;
+            }
+            rem_value(v, best_pos, play);
         }
     }
-
     return FALSE;
-}
-
-static u8 select_clear_position(const u8 v[81], const u16 bitmap[81], u8 * val) {
-    u8 min_bits = 10;
-    u8 ret = 255;
-    u8 i;
-
-    for (i = 0; i < 81; ++i) {
-        if (v[i] == 0) {
-            u8 bc = bit_counts[bitmap[i]];
-            if (bc == 1) {
-                *val = single_bit_positions[bitmap[i]];
-                return i;
-            }
-            if (bc < min_bits) {
-                min_bits = bc;
-                ret = i;
-            }
-        }
-    }
-
-    return ret;
 }
 
 static bool solve(u8 v[81]) {
     u8 i;
-    u16 bitmap[81];
-
-    bool impossible = FALSE;
-    bool finished = calc_bitmaps_of_accepted_values(bitmap, v, &impossible);
-    if (impossible) {
-        return FALSE;
-    }
-    if (finished) {
-        return TRUE;
-    }
-
-    u8 val = 0;
-    u8 selected = select_clear_position(v, bitmap, &val);
-    if (val) {
-        v[selected] = val;
-        if (solve(v)) {
-            return TRUE;
-        }
-        v[selected] = 0;
-        return FALSE;
-    }
+    u8 j;
+    u8 k;
 
     for (i = 0; i < 9; ++i) {
-        if (bitmap[selected] & (1 << i)) {
-            v[selected] = i + 1;
-            if (solve(v)) {
-                return TRUE;
+        for (j = 0; j < 9; ++j) {
+            rows[i][j] = 0;
+            columns[i][j] = 0;
+        }
+    }
+    for (i = 0; i < 3; ++i) {
+        for (j = 0; j < 3; ++j) {
+            for (k = 0; k < 9; ++k) {
+                squares[i][j][k] = 0;
             }
-            v[selected] = 0;
         }
     }
 
-    return FALSE;
+    for (i = 0; i < 81; ++i) {
+        if (v[i] != 0) {
+            add_value(v, i, v[i] - 1);
+        }
+    }
+
+    return solve1(v);
 }
 
 int main(int argc, char * argv[]) {
@@ -208,8 +178,6 @@ int main(int argc, char * argv[]) {
         fprintf(stderr, "Could not open file for reading\n");
         return EXIT_FAILURE;
     }
-
-    populate_bit_counts();
 
     char buffer[83];
 
