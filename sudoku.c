@@ -91,12 +91,13 @@ static bool search(u8 v[9][9]) {
     u8 best_pos_y;
 
     for (y = 0; y < 9; ++y) {
+        u8 y3 = y / 3;
         for (x = 0; x < 9; ++x) {
             if (v[y][x] != 0) {
                 continue;
             }
 
-            u16 masked = rows[y] | columns[x] | squares[y / 3][x / 3];
+            u16 masked = rows[y] | columns[x] | squares[y3][x / 3];
             u8 valid_plays = get_valid_plays(masked);
             if (valid_plays == 0) {
                 return FALSE;
@@ -125,7 +126,7 @@ static bool search(u8 v[9][9]) {
 
     x = best_pos_x;
     y = best_pos_y;
-    for (u8 play = 0; play < 9; ++play) {
+    for (char play = 8; play >= 0; --play) {
         u16 mask = (1 << play);
 
         if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
