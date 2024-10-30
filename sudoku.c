@@ -43,6 +43,8 @@ static void string_to_board(u8 v[9][9], const char * buffer) {
 static u16 rows[9];
 static u16 columns[9];
 static u16 squares[3][3];
+static u8 calced_valid_plays[512];
+static u8 calced_valid_play[512];
 
 static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     v[y][x] = val + 1;
@@ -60,81 +62,33 @@ static void rem_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     squares[y / 3][x / 3] &= mask;
 }
 
-static bool search_upper(u8 v[9][9]) {
-    u8 x;
-    u8 y;
-    u8 best_valid_plays = 10;
-    u8 best_pos_x;
-    u8 best_pos_y;
-    u8 last_play;
-    u8 valid_plays;
-    u8 play;
-
-    for (y = 0; y < 9; ++y) {
-        for (x = 0; x < 9; ++x) {
-            if (v[y][x] != 0) {
-                continue;
-            }
-
-            last_play = 0;
-            valid_plays = 0;
-            for (play = 0; play < 9; ++play) {
-                u16 mask = (1 << play);
-
-                if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
-                    valid_plays++;
-                    last_play = play;
-                }
-            }
-
-            if (valid_plays == 0) {
-                return FALSE;
-            }
-            if (valid_plays == 1) {
-                add_value(v, x, y, last_play);
-                if (search_upper(v)) {
-                    return TRUE;
-                }
-                rem_value(v, x, y, last_play);
-                return FALSE;
-            }
-            if (best_valid_plays > valid_plays) {
-                best_valid_plays = valid_plays;
-                best_pos_x = x;
-                best_pos_y = y;
-            }
-        }
-    }
-
-    if (best_valid_plays == 10) {
-        return TRUE;
-    }
-
-    x = best_pos_x;
-    y = best_pos_y;
-    for (play = 0; play < 9; ++play) {
-        u16 mask = (1 << play);
-
-        if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
-            add_value(v, x, y, play);
-            if (search_upper(v)) {
-                return TRUE;
-            }
-            rem_value(v, x, y, play);
-        }
-    }
-    return FALSE;
+static u8 get_valid_plays(u16 val) {
+    return calced_valid_plays[val];
 }
 
-static bool search_lower(u8 v[9][9]) {
+static u8 pick_play(u16 val) {
+    return calced_valid_play[val];
+}
+
+static void init() {
+    for (u16 v = 0; v < 512; v++) {
+        u8 bits = 0;
+        for (u8 y = 0; y < 9; ++y) {
+            if ((v & (1 << y)) == 0) {
+                bits++;
+                calced_valid_play[v] = y;
+            }
+        }
+        calced_valid_plays[v] = bits;
+    }
+}
+
+static bool search(u8 v[9][9]) {
     u8 x;
     u8 y;
     u8 best_valid_plays = 10;
     u8 best_pos_x;
     u8 best_pos_y;
-    u8 last_play;
-    u8 valid_plays;
-    char play;
 
     for (y = 0; y < 9; ++y) {
         for (x = 0; x < 9; ++x) {
@@ -142,23 +96,16 @@ static bool search_lower(u8 v[9][9]) {
                 continue;
             }
 
-            last_play = 0;
-            valid_plays = 0;
-            for (play = 8; play >= 0; --play) {
-                u16 mask = (1 << play);
-
-                if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
-                    valid_plays++;
-                    last_play = play;
-                }
-            }
-
+            u16 masked = rows[y] | columns[x] | squares[y / 3][x / 3];
+            u8 valid_plays = get_valid_plays(masked);
             if (valid_plays == 0) {
                 return FALSE;
             }
+
             if (valid_plays == 1) {
+                u8 last_play = pick_play(masked);
                 add_value(v, x, y, last_play);
-                if (search_lower(v)) {
+                if (search(v)) {
                     return TRUE;
                 }
                 rem_value(v, x, y, last_play);
@@ -178,12 +125,12 @@ static bool search_lower(u8 v[9][9]) {
 
     x = best_pos_x;
     y = best_pos_y;
-    for (play = 8; play >= 0; --play) {
+    for (u8 play = 0; play < 9; ++play) {
         u16 mask = (1 << play);
 
         if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
             add_value(v, x, y, play);
-            if (search_lower(v)) {
+            if (search(v)) {
                 return TRUE;
             }
             rem_value(v, x, y, play);
@@ -206,27 +153,15 @@ static bool setup(u8 v[9][9]) {
         }
     }
 
-    u8 upper = 0;
-    u8 lower = 0;
-
     for (y = 0; y < 9; ++y) {
         for (x = 0; x < 9; ++x) {
             if (v[y][x] != 0) {
-                if (v[y][x] < 5) {
-                    lower++;
-                } else {
-                    upper++;
-                }
                 add_value(v, x, y, v[y][x] - 1);
             }
         }
     }
 
-    if (upper < lower) {
-        return search_lower(v);
-    } else {
-        return search_upper(v);
-    }
+    return search(v);
 }
 
 int main(int argc, char * argv[]) {
@@ -256,6 +191,7 @@ int main(int argc, char * argv[]) {
         return EXIT_FAILURE;
     }
 
+    init();
     char buffer[83];
 
     while (fgets(buffer, 82, fp) != NULL) {
