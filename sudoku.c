@@ -96,9 +96,9 @@ static bool search(u8 v[9][9]) {
     u8 best_pos_y;
     u8 square_i;
 
-    // if (squares_left_count == 0) {
-    //     return TRUE;
-    // }
+    if (squares_left_count == 0) {
+        return TRUE;
+    }
 
     for (u8 i = 0; i < squares_left_count; ++i) {
         u8 x = squares_left_x[i];
@@ -139,10 +139,6 @@ static bool search(u8 v[9][9]) {
             best_pos_y = y;
             square_i = i;
         }
-    }
-
-    if (best_valid_plays == 10) {
-        return TRUE;
     }
 
     x = best_pos_x;
