@@ -40,11 +40,14 @@ static void string_to_board(u8 v[9][9], const char * buffer) {
     }
 }
 
+static u16 start_rows[9];
+static u16 start_columns[9];
+static u16 start_squares[3][3];
 static u16 rows[9];
 static u16 columns[9];
 static u16 squares[3][3];
-static u8 calced_valid_plays[512];
-static u8 calced_valid_play[512];
+static u8 calced_valid_plays_count[512];
+static u8 calced_valid_plays[512][8];
 
 static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     v[y][x] = val + 1;
@@ -54,38 +57,37 @@ static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     squares[y / 3][x / 3] |= mask;
 }
 
-static void rem_value(u8 v[9][9], u8 x, u8 y, u8 val) {
-    v[y][x] = 0;
-    u16 mask = ~(1 << val);
-    rows[y] &= mask;
-    columns[x] &= mask;
-    squares[y / 3][x / 3] &= mask;
-}
-
-static u8 get_valid_plays(u16 val) {
-    return calced_valid_plays[val];
-}
-
-static u8 pick_play(u16 val) {
-    return calced_valid_play[val];
-}
-
 static void init() {
+    u8 x;
+    u8 y;
+
+    for (y = 0; y < 9; ++y) {
+        start_rows[y] = 0;
+        start_columns[y] = 0;
+    }
+    for (y = 0; y < 3; ++y) {
+        for (x = 0; x < 3; ++x) {
+            start_squares[y][x] = 0;
+        }
+    }
+
     for (u16 v = 0; v < 512; v++) {
-        u8 bits = 0;
+        calced_valid_plays_count[v] = 0;
         for (u8 y = 0; y < 9; ++y) {
             if ((v & (1 << y)) == 0) {
-                bits++;
-                calced_valid_play[v] = y;
+                if (calced_valid_plays_count[v] < 8) {
+                    calced_valid_plays[v][calced_valid_plays_count[v]] = y;
+                }
+                calced_valid_plays_count[v]++;
             }
         }
-        calced_valid_plays[v] = bits;
     }
 }
 
 static bool search(u8 v[9][9]) {
     u8 x;
     u8 y;
+    u16 best_masked;
     u8 best_valid_plays = 10;
     u8 best_pos_x;
     u8 best_pos_y;
@@ -98,21 +100,27 @@ static bool search(u8 v[9][9]) {
             }
 
             u16 masked = rows[y] | columns[x] | squares[y3][x / 3];
-            u8 valid_plays = get_valid_plays(masked);
+            u8 valid_plays = calced_valid_plays_count[masked];
             if (valid_plays == 0) {
                 return FALSE;
             }
-
             if (valid_plays == 1) {
-                u8 last_play = pick_play(masked);
+                u8 last_play = calced_valid_plays[masked][0];
+                u16 tmp1 = rows[y];
+                u16 tmp2 = columns[x];
+                u16 tmp3 = squares[y / 3][x / 3];
                 add_value(v, x, y, last_play);
                 if (search(v)) {
                     return TRUE;
                 }
-                rem_value(v, x, y, last_play);
+                v[y][x] = 0;
+                rows[y] = tmp1;
+                columns[x] = tmp2;
+                squares[y / 3][x / 3] = tmp3;
                 return FALSE;
             }
             if (best_valid_plays > valid_plays) {
+                best_masked = masked;
                 best_valid_plays = valid_plays;
                 best_pos_x = x;
                 best_pos_y = y;
@@ -126,36 +134,46 @@ static bool search(u8 v[9][9]) {
 
     x = best_pos_x;
     y = best_pos_y;
-    for (char play = 8; play >= 0; --play) {
-        u16 mask = (1 << play);
 
-        if ((rows[y] & mask) == 0 && (columns[x] & mask) == 0 && (squares[y / 3][x / 3] & mask) == 0) {
+    u16 tmp1 = rows[y];
+    u16 tmp2 = columns[x];
+    u16 tmp3 = squares[y / 3][x / 3];
+
+    if (best_valid_plays == 9) {
+        for (u8 play = 0; play < 9; ++play) {
             add_value(v, x, y, play);
             if (search(v)) {
                 return TRUE;
             }
-            rem_value(v, x, y, play);
+            rows[y] = tmp1;
+            columns[x] = tmp2;
+            squares[y / 3][x / 3] = tmp3;
         }
+        v[y][x] = 0;
+        return FALSE;
     }
+
+    for (char i = best_valid_plays - 1; i >= 0; --i) {
+        u8 play = calced_valid_plays[best_masked][(u8)i];
+        add_value(v, x, y, play);
+        if (search(v)) {
+            return TRUE;
+        }
+        rows[y] = tmp1;
+        columns[x] = tmp2;
+        squares[y / 3][x / 3] = tmp3;
+    }
+    v[y][x] = 0;
     return FALSE;
 }
 
 static bool setup(u8 v[9][9]) {
-    u8 x;
-    u8 y;
+    memcpy(rows, start_rows, sizeof(rows));
+    memcpy(columns, start_columns, sizeof(columns));
+    memcpy(squares, start_squares, sizeof(squares));
 
-    for (y = 0; y < 9; ++y) {
-        rows[y] = 0;
-        columns[y] = 0;
-    }
-    for (y = 0; y < 3; ++y) {
-        for (x = 0; x < 3; ++x) {
-            squares[y][x] = 0;
-        }
-    }
-
-    for (y = 0; y < 9; ++y) {
-        for (x = 0; x < 9; ++x) {
+    for (u8 y = 0; y < 9; ++y) {
+        for (u8 x = 0; x < 9; ++x) {
             if (v[y][x] != 0) {
                 add_value(v, x, y, v[y][x] - 1);
             }
