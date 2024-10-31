@@ -48,6 +48,9 @@ static u16 columns[9];
 static u16 squares[3][3];
 static u8 calced_valid_plays_count[512];
 static u8 calced_valid_plays[512][8];
+static u8 squares_left_count;
+static u8 squares_left_x[81];
+static u8 squares_left_y[81];
 
 static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     v[y][x] = val + 1;
@@ -57,7 +60,7 @@ static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     squares[y / 3][x / 3] |= mask;
 }
 
-static void init() {
+static void init_global() {
     u8 x;
     u8 y;
 
@@ -91,40 +94,50 @@ static bool search(u8 v[9][9]) {
     u8 best_valid_plays = 10;
     u8 best_pos_x;
     u8 best_pos_y;
+    u8 square_i;
 
-    for (y = 0; y < 9; ++y) {
-        u8 y3 = y / 3;
-        for (x = 0; x < 9; ++x) {
-            if (v[y][x] != 0) {
-                continue;
-            }
+    // if (squares_left_count == 0) {
+    //     return TRUE;
+    // }
 
-            u16 masked = rows[y] | columns[x] | squares[y3][x / 3];
-            u8 valid_plays = calced_valid_plays_count[masked];
-            if (valid_plays == 0) {
-                return FALSE;
+    for (u8 i = 0; i < squares_left_count; ++i) {
+        u8 x = squares_left_x[i];
+        u8 y = squares_left_y[i];
+
+        u16 masked = rows[y] | columns[x] | squares[y / 3][x / 3];
+        u8 valid_plays = calced_valid_plays_count[masked];
+        if (valid_plays == 0) {
+            return FALSE;
+        }
+        if (valid_plays == 1) {
+            u8 last_play = calced_valid_plays[masked][0];
+            u16 tmp1 = rows[y];
+            u16 tmp2 = columns[x];
+            u16 tmp3 = squares[y / 3][x / 3];
+            squares_left_count--;
+            squares_left_x[i] = squares_left_x[squares_left_count];
+            squares_left_y[i] = squares_left_y[squares_left_count];
+            add_value(v, x, y, last_play);
+            if (search(v)) {
+                return TRUE;
             }
-            if (valid_plays == 1) {
-                u8 last_play = calced_valid_plays[masked][0];
-                u16 tmp1 = rows[y];
-                u16 tmp2 = columns[x];
-                u16 tmp3 = squares[y / 3][x / 3];
-                add_value(v, x, y, last_play);
-                if (search(v)) {
-                    return TRUE;
-                }
-                v[y][x] = 0;
-                rows[y] = tmp1;
-                columns[x] = tmp2;
-                squares[y / 3][x / 3] = tmp3;
-                return FALSE;
-            }
-            if (best_valid_plays > valid_plays) {
-                best_masked = masked;
-                best_valid_plays = valid_plays;
-                best_pos_x = x;
-                best_pos_y = y;
-            }
+            v[y][x] = 0;
+            rows[y] = tmp1;
+            columns[x] = tmp2;
+            squares[y / 3][x / 3] = tmp3;
+            squares_left_x[squares_left_count] = squares_left_x[i];
+            squares_left_y[squares_left_count] = squares_left_y[i];
+            squares_left_x[i] = x;
+            squares_left_y[i] = y;
+            squares_left_count++;
+            return FALSE;
+        }
+        if (best_valid_plays > valid_plays) {
+            best_masked = masked;
+            best_valid_plays = valid_plays;
+            best_pos_x = x;
+            best_pos_y = y;
+            square_i = i;
         }
     }
 
@@ -142,12 +155,20 @@ static bool search(u8 v[9][9]) {
     if (best_valid_plays == 9) {
         for (u8 play = 0; play < 9; ++play) {
             add_value(v, x, y, play);
+            squares_left_count--;
+            squares_left_x[square_i] = squares_left_x[squares_left_count];
+            squares_left_y[square_i] = squares_left_y[squares_left_count];
             if (search(v)) {
                 return TRUE;
             }
             rows[y] = tmp1;
             columns[x] = tmp2;
             squares[y / 3][x / 3] = tmp3;
+            squares_left_x[squares_left_count] = squares_left_x[square_i];
+            squares_left_y[squares_left_count] = squares_left_y[square_i];
+            squares_left_x[square_i] = x;
+            squares_left_y[square_i] = y;
+            squares_left_count++;
         }
         v[y][x] = 0;
         return FALSE;
@@ -155,6 +176,9 @@ static bool search(u8 v[9][9]) {
 
     for (char i = best_valid_plays - 1; i >= 0; --i) {
         u8 play = calced_valid_plays[best_masked][(u8)i];
+        squares_left_count--;
+        squares_left_x[square_i] = squares_left_x[squares_left_count];
+        squares_left_y[square_i] = squares_left_y[squares_left_count];
         add_value(v, x, y, play);
         if (search(v)) {
             return TRUE;
@@ -162,19 +186,30 @@ static bool search(u8 v[9][9]) {
         rows[y] = tmp1;
         columns[x] = tmp2;
         squares[y / 3][x / 3] = tmp3;
+        squares_left_x[squares_left_count] = squares_left_x[square_i];
+        squares_left_y[squares_left_count] = squares_left_y[square_i];
+        squares_left_x[square_i] = x;
+        squares_left_y[square_i] = y;
+        squares_left_count++;
     }
     v[y][x] = 0;
     return FALSE;
 }
 
-static bool setup(u8 v[9][9]) {
+static bool init_board(u8 v[9][9]) {
     memcpy(rows, start_rows, sizeof(rows));
     memcpy(columns, start_columns, sizeof(columns));
     memcpy(squares, start_squares, sizeof(squares));
 
+    squares_left_count = 0;
+
     for (u8 y = 0; y < 9; ++y) {
         for (u8 x = 0; x < 9; ++x) {
-            if (v[y][x] != 0) {
+            if (v[y][x] == 0) {
+                squares_left_x[squares_left_count] = x;
+                squares_left_y[squares_left_count] = y;
+                squares_left_count++;
+            } else {
                 add_value(v, x, y, v[y][x] - 1);
             }
         }
@@ -210,7 +245,7 @@ int main(int argc, char * argv[]) {
         return EXIT_FAILURE;
     }
 
-    init();
+    init_global();
     char buffer[83];
 
     while (fgets(buffer, 82, fp) != NULL) {
@@ -227,7 +262,7 @@ int main(int argc, char * argv[]) {
         u8 v[9][9];
         string_to_board(v, buffer);
 
-        bool board_solved = setup(v);
+        bool board_solved = init_board(v);
         if (board_solved) {
             solved++;
             if (verbose) {
