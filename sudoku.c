@@ -8,6 +8,25 @@ typedef char bool;
 #define TRUE 1
 #define FALSE 0
 
+
+typedef struct __Pos {
+   u8 x;
+   u8 y;
+} Pos;
+
+typedef struct __Bitmaps {
+    u16 rows[9];
+    u16 columns[9];
+    u16 squares[3][3];
+} Bitmaps;
+
+static Bitmaps start_bitmaps;
+static Bitmaps bitmaps;
+static u8 calced_valid_plays_count[512];
+static u8 calced_valid_plays[512][8];
+static u8 squares_left_count;
+static Pos squares_left[64];
+
 static void print_board(const u8 v[9][9]) {
     u8 x;
     u8 y;
@@ -40,28 +59,12 @@ static void string_to_board(u8 v[9][9], const char * buffer) {
     }
 }
 
-static u16 start_rows[9];
-static u16 start_columns[9];
-static u16 start_squares[3][3];
-static u16 rows[9];
-static u16 columns[9];
-static u16 squares[3][3];
-static u8 calced_valid_plays_count[512];
-static u8 calced_valid_plays[512][8];
-static u8 squares_left_count;
-
-typedef struct __Pos {
-   u8 x;
-   u8 y;
-} Pos;
-static Pos squares_left[81];
-
 static void add_value(u8 v[9][9], u8 x, u8 y, u8 val) {
     v[y][x] = val + 1;
     u16 mask = (1 << val);
-    rows[y] |= mask;
-    columns[x] |= mask;
-    squares[y / 3][x / 3] |= mask;
+    bitmaps.rows[y] |= mask;
+    bitmaps.columns[x] |= mask;
+    bitmaps.squares[y / 3][x / 3] |= mask;
 }
 
 static void init_global() {
@@ -69,12 +72,12 @@ static void init_global() {
     u8 y;
 
     for (y = 0; y < 9; ++y) {
-        start_rows[y] = 0;
-        start_columns[y] = 0;
+        start_bitmaps.rows[y] = 0;
+        start_bitmaps.columns[y] = 0;
     }
     for (y = 0; y < 3; ++y) {
         for (x = 0; x < 3; ++x) {
-            start_squares[y][x] = 0;
+            start_bitmaps.squares[y][x] = 0;
         }
     }
 
@@ -108,16 +111,16 @@ static bool search(u8 v[9][9]) {
         u8 x = squares_left[i].x;
         u8 y = squares_left[i].y;
 
-        u16 masked = rows[y] | columns[x] | squares[y / 3][x / 3];
+        u16 masked = bitmaps.rows[y] | bitmaps.columns[x] | bitmaps.squares[y / 3][x / 3];
         u8 valid_plays = calced_valid_plays_count[masked];
         if (valid_plays == 0) {
             return FALSE;
         }
         if (valid_plays == 1) {
             u8 last_play = calced_valid_plays[masked][0];
-            u16 tmp1 = rows[y];
-            u16 tmp2 = columns[x];
-            u16 tmp3 = squares[y / 3][x / 3];
+            u16 tmp1 = bitmaps.rows[y];
+            u16 tmp2 = bitmaps.columns[x];
+            u16 tmp3 = bitmaps.squares[y / 3][x / 3];
             squares_left_count--;
             squares_left[i].x = squares_left[squares_left_count].x;
             squares_left[i].y = squares_left[squares_left_count].y;
@@ -126,9 +129,9 @@ static bool search(u8 v[9][9]) {
                 return TRUE;
             }
             v[y][x] = 0;
-            rows[y] = tmp1;
-            columns[x] = tmp2;
-            squares[y / 3][x / 3] = tmp3;
+            bitmaps.rows[y] = tmp1;
+            bitmaps.columns[x] = tmp2;
+            bitmaps.squares[y / 3][x / 3] = tmp3;
             squares_left[squares_left_count].x = squares_left[i].x;
             squares_left[squares_left_count].y = squares_left[i].y;
             squares_left[i].x = x;
@@ -148,9 +151,9 @@ static bool search(u8 v[9][9]) {
     x = best_pos_x;
     y = best_pos_y;
 
-    u16 tmp1 = rows[y];
-    u16 tmp2 = columns[x];
-    u16 tmp3 = squares[y / 3][x / 3];
+    u16 tmp1 = bitmaps.rows[y];
+    u16 tmp2 = bitmaps.columns[x];
+    u16 tmp3 = bitmaps.squares[y / 3][x / 3];
 
     if (best_valid_plays == 9) {
         for (u8 play = 0; play < 9; ++play) {
@@ -161,9 +164,9 @@ static bool search(u8 v[9][9]) {
             if (search(v)) {
                 return TRUE;
             }
-            rows[y] = tmp1;
-            columns[x] = tmp2;
-            squares[y / 3][x / 3] = tmp3;
+            bitmaps.rows[y] = tmp1;
+            bitmaps.columns[x] = tmp2;
+            bitmaps.squares[y / 3][x / 3] = tmp3;
             squares_left[squares_left_count].x = squares_left[square_i].x;
             squares_left[squares_left_count].y = squares_left[square_i].y;
             squares_left[square_i].x = x;
@@ -183,9 +186,9 @@ static bool search(u8 v[9][9]) {
         if (search(v)) {
             return TRUE;
         }
-        rows[y] = tmp1;
-        columns[x] = tmp2;
-        squares[y / 3][x / 3] = tmp3;
+        bitmaps.rows[y] = tmp1;
+        bitmaps.columns[x] = tmp2;
+        bitmaps.squares[y / 3][x / 3] = tmp3;
         squares_left[squares_left_count].x = squares_left[square_i].x;
         squares_left[squares_left_count].y = squares_left[square_i].y;
         squares_left[square_i].x = x;
@@ -197,20 +200,19 @@ static bool search(u8 v[9][9]) {
 }
 
 static bool init_board(u8 v[9][9]) {
-    memcpy(rows, start_rows, sizeof(rows));
-    memcpy(columns, start_columns, sizeof(columns));
-    memcpy(squares, start_squares, sizeof(squares));
+    memcpy(&bitmaps, &start_bitmaps, sizeof(Bitmaps));
 
     squares_left_count = 0;
 
     for (u8 y = 0; y < 9; ++y) {
         for (u8 x = 0; x < 9; ++x) {
-            if (v[y][x] == 0) {
+            u8 vs = v[y][x];
+            if (vs == 0) {
                 squares_left[squares_left_count].x = x;
                 squares_left[squares_left_count].y = y;
                 squares_left_count++;
             } else {
-                add_value(v, x, y, v[y][x] - 1);
+                add_value(v, x, y, vs - 1);
             }
         }
     }
