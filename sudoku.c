@@ -34,8 +34,8 @@ static u8 v[9][9];
 static char line[LINE_BUFFER_SIZE];
 
 static void print_board(void) {
-    unsigned x;
-    unsigned y;
+    unsigned int x;
+    unsigned int y;
 
     for (y = 0; y < 9; ++y) {
         if (y > 0) {
@@ -45,14 +45,14 @@ static void print_board(void) {
             if (v[y][x] == 0) {
                 printf(" -");
             } else {
-                printf(" %u", (unsigned)v[y][x]);
+                printf(" %u", (unsigned int)v[y][x]);
             }
         }
     }
     printf("\n\n");
 }
 
-static void add_value(unsigned x, unsigned y, unsigned val) {
+static void add_value(unsigned int x, unsigned int y, unsigned int val) {
     u16 mask = (u16)(1u << val);
     bitmaps.rows[y] |= mask;
     bitmaps.columns[x] |= mask;
@@ -62,9 +62,9 @@ static void add_value(unsigned x, unsigned y, unsigned val) {
 static void init_global(void) {
     memset(&start_bitmaps, 0, sizeof(Bitmaps));
 
-    for (unsigned mask = 0; mask < MASK_COMBINATIONS; mask++) {
-        unsigned count = 0;
-        for (unsigned play = 0; play < 9; ++play) {
+    for (unsigned int mask = 0; mask < MASK_COMBINATIONS; mask++) {
+        unsigned int count = 0;
+        for (unsigned int play = 0; play < 9; ++play) {
             if ((mask & (1u << play)) == 0) {
                 calced_valid_plays[mask][count] = (u8)play;
                 count++;
@@ -77,26 +77,26 @@ static void init_global(void) {
 static bool search(void) {
     u16 best_masked = 0;
     /* Above the 9 plays a fully empty cell has, so any cell can win. */
-    unsigned best_valid_plays = 10;
-    unsigned best_pos_x = 0;
-    unsigned best_pos_y = 0;
-    unsigned square_i = 0;
+    unsigned int best_valid_plays = 10;
+    unsigned int best_pos_x = 0;
+    unsigned int best_pos_y = 0;
+    unsigned int square_i = 0;
 
     if (squares_left_count == 0) {
         return TRUE;
     }
 
-    for (unsigned i = 0; i < squares_left_count; ++i) {
-        unsigned x = squares_left[i].x;
-        unsigned y = squares_left[i].y;
+    for (unsigned int i = 0; i < squares_left_count; ++i) {
+        unsigned int x = squares_left[i].x;
+        unsigned int y = squares_left[i].y;
 
         u16 masked = bitmaps.rows[y] | bitmaps.columns[x] | bitmaps.squares[y / 3][x / 3];
-        unsigned valid_plays = calced_valid_plays_count[masked];
+        unsigned int valid_plays = calced_valid_plays_count[masked];
         if (valid_plays == 0) {
             return FALSE;
         }
         if (valid_plays == 1) {
-            unsigned play = calced_valid_plays[masked][0];
+            unsigned int play = calced_valid_plays[masked][0];
             u16 tmp1 = bitmaps.rows[y];
             u16 tmp2 = bitmaps.columns[x];
             u16 tmp3 = bitmaps.squares[y / 3][x / 3];
@@ -125,8 +125,8 @@ static bool search(void) {
         }
     }
 
-    unsigned x = best_pos_x;
-    unsigned y = best_pos_y;
+    unsigned int x = best_pos_x;
+    unsigned int y = best_pos_y;
 
     u16 tmp1 = bitmaps.rows[y];
     u16 tmp2 = bitmaps.columns[x];
@@ -134,7 +134,7 @@ static bool search(void) {
 
     squares_left_count--;
     for (int i = (int)best_valid_plays - 1; i >= 0; --i) {
-        unsigned play = calced_valid_plays[best_masked][i];
+        unsigned int play = calced_valid_plays[best_masked][i];
         squares_left[square_i] = squares_left[squares_left_count];
         add_value(x, y, play);
         if (search()) {
@@ -152,7 +152,7 @@ static bool search(void) {
 }
 
 static bool parse_line(const char * buffer, u8 * cells) {
-    unsigned count = 0;
+    unsigned int count = 0;
 
     for (const char * p = buffer; *p != 0; ++p) {
         char c = *p;
@@ -177,10 +177,10 @@ static bool init_board(const u8 * cells) {
 
     squares_left_count = 0;
 
-    unsigned i = 0;
-    for (unsigned y = 0; y < 9; ++y) {
-        for (unsigned x = 0; x < 9; ++x) {
-            unsigned vs = cells[i];
+    unsigned int i = 0;
+    for (unsigned int y = 0; y < 9; ++y) {
+        for (unsigned int x = 0; x < 9; ++x) {
+            unsigned int vs = cells[i];
 
             if (vs == 0) {
                 v[y][x] = 0;
